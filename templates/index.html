@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Transport Delay Predictor</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+      body {
+        font-family: Arial;
+        background: #eaf2f8;
+        text-align: center;
+      }
+      input {
+        padding: 10px;
+        margin: 8px;
+        width: 220px;
+      }
+      button {
+        padding: 10px 20px;
+        background: blue;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      #map {
+        height: 300px;
+        width: 80%;
+        margin: 20px auto;
+      }
+      table {
+        margin: auto;
+        border-collapse: collapse;
+        width: 80%;
+      }
+      th,
+      td {
+        padding: 10px;
+        border-bottom: 1px solid #ccc;
+        text-align: center;
+      }
+      th {
+        background: #333;
+        color: white;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>🚆 Transport Delay Predictor</h1>
+
+    <div id="map"></div>
+
+    <button onclick="getLocation()" style="background: green">
+      📍 Use My Location
+    </button>
+
+    <p id="locationText"></p>
+    <p id="nearestStation"></p>
+
+    <form action="/predict" method="post">
+      <input
+        type="text"
+        name="train_number"
+        placeholder="Train Number"
+        required
+      /><br />
+      <input
+        type="text"
+        name="from_station"
+        id="from_station"
+        placeholder="From Station"
+        required
+      /><br />
+      <input
+        type="text"
+        name="to_station"
+        placeholder="To Station"
+        required
+      /><br />
+
+      <!-- 🔥 NEW DATE -->
+      <input type="date" name="journey_date" required /><br />
+
+      <button type="submit">Predict Delay</button>
+    </form>
+
+    {% if journey_date %}
+    <p>📅 Journey Date: {{ journey_date }}</p>
+    {% endif %} {% if results %}
+    <h2>Train Analysis</h2>
+
+    <table>
+      <tr>
+        <th>Train</th>
+        <th>No</th>
+        <th>Delay</th>
+        <th>Confidence</th>
+        <th>Status</th>
+      </tr>
+
+      {% for train in results %}
+      <tr>
+        <td>{{ train.train_name }}</td>
+        <td>{{ train.train_number }}</td>
+
+        <td>
+          {% if train.delay <= 5 %}
+          <span style="color: green">{{ train.delay }} min</span>
+          {% elif train.delay <= 15 %}
+          <span style="color: orange">{{ train.delay }} min</span>
+          {% else %}
+          <span style="color: red">{{ train.delay }} min</span>
+          {% endif %}
+        </td>
+
+        <td>
+          <div
+            style="
+              background: #eee;
+              width: 100px;
+              margin: auto;
+              border-radius: 5px;
+            "
+          >
+            <div
+              style="background:green; width: {{ train.confidence }}%; color:white;"
+            >
+              {{ train.confidence }}%
+            </div>
+          </div>
+        </td>
+
+        <td>
+          {% if train.delay <= 5 %} 🟢 On Time {% elif train.delay <= 15 %} 🟡
+          Slight Delay {% else %} 🔴 High Delay {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    {% set best = results[0] %}
+    <div style="margin-top: 20px; background: #d4edda; padding: 10px">
+      ⭐ Recommended Train: {{ best.train_name }} ({{ best.train_number }})
+    </div>
+
+    {% endif %}
+
+    <script>
+      var map = L.map("map").setView([20.5937, 78.9629], 5);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(
+        map,
+      );
+
+      // sample stations
+      const stations = [
+        { name: "Hyderabad", code: "HYB", lat: 17.385, lon: 78.4867 },
+        { name: "Delhi", code: "NDLS", lat: 28.643, lon: 77.2194 },
+        { name: "Chennai", code: "MAS", lat: 13.0827, lon: 80.2707 },
+      ];
+
+      function getDistance(lat1, lon1, lat2, lon2) {
+        return Math.sqrt((lat1 - lat2) ** 2 + (lon1 - lon2) ** 2);
+      }
+
+      function getLocation() {
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          let lat = pos.coords.latitude;
+          let lon = pos.coords.longitude;
+
+          map.setView([lat, lon], 10);
+          L.marker([lat, lon]).addTo(map);
+
+          let nearest = null;
+          let minDist = 999;
+
+          stations.forEach((s) => {
+            let d = getDistance(lat, lon, s.lat, s.lon);
+            if (d < minDist) {
+              minDist = d;
+              nearest = s;
+            }
+          });
+
+          document.getElementById("from_station").value = nearest.code;
+          document.getElementById("nearestStation").innerHTML =
+            "Nearest: " + nearest.name + " (" + nearest.code + ")";
+        });
+      }
+    </script>
+  </body>
+</html>
